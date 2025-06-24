@@ -1,7 +1,7 @@
 # app/routers/suggestions.py
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from .. import schemas, services
+from .. import schemas, service
 
 router = APIRouter(
     prefix="/suggestions",
@@ -11,7 +11,7 @@ router = APIRouter(
 @router.post("/", response_model=schemas.SuggestionResponse)
 async def get_suggestions_for_free_time(request_body: schemas.SuggestionRequest):
     try:
-        suggestions = await services.GoogleSearchService.search_suggestions(request_body)
+        suggestions = await service.GoogleSearchService.search_suggestions(request_body)
         return suggestions
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))

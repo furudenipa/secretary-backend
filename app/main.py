@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import events, suggestions
+from .routers import events, suggestion
 
 # FastAPIアプリケーションインスタンスを作成
 app = FastAPI(
@@ -29,7 +29,7 @@ app.add_middleware(
 
 # ルーターをアプリケーションに登録
 app.include_router(events.router)
-app.include_router(suggestions.router)
+app.include_router(suggestion.router)
 
 @app.on_event("startup")
 async def startup_event():
