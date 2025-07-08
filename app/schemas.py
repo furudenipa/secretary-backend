@@ -59,3 +59,7 @@ class Suggestion(BaseModel):
 class SuggestionResponse(BaseModel):
     query: str
     suggestions: list[Suggestion]
+
+# --- User Profile Schemas ---
+class UserProfileResponse(BaseModel):
+    profile: str
