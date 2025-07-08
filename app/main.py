@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import events, suggestion, user_profile
+from .routers import events, suggestion, agent, planner, user_profile
 
 # FastAPIアプリケーションインスタンスを作成
 app = FastAPI(
@@ -30,6 +30,9 @@ app.add_middleware(
 # ルーターをアプリケーションに登録
 app.include_router(events.router)
 app.include_router(suggestion.router)
+
+app.include_router(agent.router)
+app.include_router(planner.router)
 app.include_router(user_profile.router)
 
 @app.on_event("startup")
