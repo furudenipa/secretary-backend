@@ -92,6 +92,16 @@ class MobilityResponse(BaseModel):
     estimated_cost: str        # 推定料金
 
 
+# 1つの行動プランは、テーマと「イベントのリスト」で構成される
+class PlanPattern(BaseModel):
+    pattern_description: str        # 例: "静かなカフェで読書プラン"
+    events: List[EventCreate]       # このプランを構成するイベントのシーケンス
+
+# 最終的なプランナーからのレスポンス
+class PlannerResponse(BaseModel):
+    mobility_decision: MobilityResponse # 移動判断の結果
+    plans: List[PlanPattern]            # 提案プランのリスト（2パターン）
+
 # # --- Suggestion Schemas ---
 
 # # 提案機能で利用する直前・直後の予定情報

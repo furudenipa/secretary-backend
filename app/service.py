@@ -229,7 +229,149 @@ class MobilityAgent:
             # エラーハンドリングを強化
             print(f"Error during OpenAI call or data parsing: {e}")
             raise ConnectionError(f"AI decision-making failed: {e}")
+        
+class MasterPlannerAgent:
+    @staticmethod
+    def _create_tavily_query_for_plans(req: schemas.MobilityRequest, mobility_decision: schemas.MobilityResponse) -> str:
+        """プラン生成のために、移動判断に基づいた検索クエリを作成する"""
+        
+        # 移動に使える合計時間から、推奨移動モードでの移動時間を引いた時間が、純粋な活動時間
+        net_activity_minutes = ((req.next_event_start_time - req.prev_event_end_time).total_seconds() / 60) - mobility_decision.estimated_time
+        
+        if net_activity_minutes < 15: # 活動時間が短すぎる場合
+             return f"{req.prev_event_location}で15分以内にできること"
 
+        if mobility_decision.use_public_transport:
+            # 公共交通機関を使う場合、出発地・目的地・またはその沿線で探す
+            return f"{req.prev_event_location}から{req.next_event_location}の間、またはその周辺で{net_activity_minutes:.0f}分で楽しめること"
+        else:
+            # 徒歩などの場合、出発地のすぐ近くで探す
+            return f"{req.prev_event_location}周辺で{net_activity_minutes:.0f}分で楽しめること"
+
+    @staticmethod
+    def _create_final_planning_prompt(
+        req: schemas.MobilityRequest,
+        mobility_decision: schemas.MobilityResponse,
+        search_context: str
+    ) -> str:
+        prompt = f"""
+        あなたは、ユーザーの状況を深く理解し、最高の体験を提案するエキスパート・プランナーです。
+        以下のすべての情報を分析し、ユーザーに2つの異なる魅力的な行動プランを提案してください。
+        各プランは、移動やアクティビティを含む一連の「イベントの集合」として構成してください。
+
+        # ユーザーの基本情報
+        - 出発地: {req.prev_event_location}
+        - 前の予定の終了時刻: {req.prev_event_end_time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+        - 目的地: {req.next_event_location}
+        - 次の予定の開始時刻: {req.next_event_start_time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+        - ユーザーの好み: 「{req.user_preferences}」
+
+        # あなたが行った移動判断
+        {mobility_decision.reasoning}
+        推奨する移動手段は「{mobility_decision.recommended_mode}」で、所要時間は約{mobility_decision.estimated_time}分です。
+
+        # Web検索から得られた参考情報
+        {search_context}
+
+        # あなたの最終タスク
+        上記の情報を基に、ユーザーの好みを満たす、創造的で具体的な行動プランを2パターン生成してください。
+        各プランは、以下の要素からなるイベントのリストで構成されます。
+        1. 【移動】前の予定の場所からアクティビティの場所への移動
+        2. 【アクティビティ】メインの活動
+        3. 【移動】アクティビティの場所から次の予定の場所への移動
+
+        時間計算は厳密に行ってください。前の予定の終了から次の予定の開始まですべての時間が埋まるように、イベントのstart_timeとend_timeを正確に設定してください。
+        必ず、以下のJSON形式で、2つのプランのリストとして出力してください。
+
+        {{
+          "plans": [
+            {{
+              "pattern_description": "プラン1のテーマ（例：静かなカフェで読書プラン）",
+              "events": [
+                {{
+                  "title": "移動：{req.prev_event_location}からアクティビティ場所へ",
+                  "start_time": "{req.prev_event_end_time.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                  "end_time": "...",
+                  "location": "{req.prev_event_location}",
+                  "description": "移動手段：{mobility_decision.recommended_mode}"
+                }},
+                {{
+                  "title": "アクティビティのタイトル",
+                  "start_time": "...",
+                  "end_time": "...",
+                  "location": "アクティビティの具体的な場所",
+                  "description": "アクティビティの具体的な内容"
+                }},
+                {{
+                  "title": "移動：アクティビティ場所から{req.next_event_location}へ",
+                  "start_time": "...",
+                  "end_time": "{req.next_event_start_time.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                  "location": "アクティビティの場所",
+                  "description": "移動手段：..."
+                }}
+              ]
+            }},
+            {{
+              "pattern_description": "プラン2のテーマ（例：話題の雑貨屋巡りプラン）",
+              "events": [
+                {{
+                  "title": "移動：...",
+                  "start_time": "...",
+                  "end_time": "...",
+                  "location": "...",
+                  "description": "..."
+                }},
+                {{
+                  "title": "...",
+                  "start_time": "...",
+                  "end_time": "...",
+                  "location": "...",
+                  "description": "..."
+                }},
+                {{
+                  "title": "移動：...",
+                  "start_time": "...",
+                  "end_time": "...",
+                  "location": "...",
+                  "description": "..."
+                }}
+              ]
+            }}
+          ]
+        }}
+        """
+        return prompt
+
+    @staticmethod
+    async def generate_plans(req: schemas.MobilityRequest) -> schemas.PlannerResponse:
+        # 1. まず移動手段を決定する
+        mobility_decision = await MobilityAgent.decide_mobility(req)
+
+        # 2. 移動判断に基づき、プランのアイデアをWeb検索する
+        tavily_query = MasterPlannerAgent._create_tavily_query_for_plans(req, mobility_decision)
+        search_result = tavily_client.search(query=tavily_query, search_depth="advanced", max_results=7)
+        search_context = "\n".join([f"- {res['content']}" for res in search_result['results']])
+
+        # 3. 全ての情報を統合し、最終的なプラン生成をAIに指示する
+        final_prompt = MasterPlannerAgent._create_final_planning_prompt(req, mobility_decision, search_context)
+        
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": final_prompt}],
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("AI Planner returned an empty response.")
+        
+        plans_data = json.loads(content)
+        
+        # 新しいPlanPatternスキーマを使ってレスポンスを構築する
+        return schemas.PlannerResponse(
+            mobility_decision=mobility_decision,
+            plans=[schemas.PlanPattern(**plan) for plan in plans_data.get('plans', [])]
+        )
 # class SuggestionService:
 #     @staticmethod
 #     def _generate_prompt(req: schemas.SuggestionRequest) -> str:
