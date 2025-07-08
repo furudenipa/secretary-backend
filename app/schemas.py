@@ -62,4 +62,6 @@ class SuggestionResponse(BaseModel):
 
 # --- User Profile Schemas ---
 class UserProfileResponse(BaseModel):
-    profile: str
+    food_preferences: str
+    activity_preferences: str
+    outing_tendency: str

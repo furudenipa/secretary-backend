@@ -1,5 +1,6 @@
 import os
 import httpx
+import json
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -69,14 +70,14 @@ class UserProfileService:
 """
 
     @staticmethod
-    async def generate_profile(db: AsyncSession) -> str:
+    async def generate_profile(db: AsyncSession) -> dict:
         """最近の予定からユーザープロフィールを生成する"""
         if not OPENAI_API_KEY:
             raise ValueError("OpenAI API Key is not set. Please set the OPENAI_API_KEY environment variable.")
 
         recent_events = await crud.get_recently_updated_events(db=db, limit=20)
         if not recent_events:
-            return '{{"food_preferences": "分析対象の予定が十分にありません。", "activity_preferences": "", "outing_tendency": ""}}'
+            return {"food_preferences": "分析対象の予定が十分にありません。", "activity_preferences": "予定の履歴がありません。", "outing_tendency": "予定の履歴がありません。"}
 
         events_summary = UserProfileService._format_events_for_prompt(recent_events)
         prompt = UserProfileService._create_prompt(events_summary)
@@ -94,4 +95,5 @@ class UserProfileService:
             response = await client.post(OPENAI_API_URL, headers=headers, json=payload, timeout=30.0)
             response.raise_for_status()
             response_data = response.json()
-            return response_data["choices"][0]["message"]["content"].strip()
+            profile_json_string = response_data["choices"][0]["message"]["content"].strip()
+            return json.loads(profile_json_string)

@@ -17,8 +17,8 @@ async def get_user_profile(db: AsyncSession = Depends(get_db)):
     最近の予定履歴からユーザーの傾向を分析し、プロフィールを生成します。
     """
     try:
-        profile_text = await UserProfileService.generate_profile(db)
-        return schemas.UserProfileResponse(profile=profile_text)
+        profile_data = await UserProfileService.generate_profile(db)
+        return profile_data
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
