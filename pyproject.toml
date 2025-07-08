@@ -8,7 +8,9 @@ dependencies = [
     "aiosqlite>=0.21.0",
     "fastapi>=0.115.13",
     "httpx>=0.28.1",
+    "openai>=1.93.1",
     "python-dotenv>=1.1.1",
     "sqlalchemy[asyncio]>=2.0.41",
+    "tavily-python>=0.7.9",
     "uvicorn>=0.34.3",
 ]
