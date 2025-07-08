@@ -75,6 +75,12 @@ class SuggestionResponse(BaseModel):
     search_query: str # Tavilyで検索したクエリ
     suggestions: List[Suggestion]
 
+# --- User Profile Schemas ---
+class UserProfileResponse(BaseModel):
+    food_preferences: str
+    activity_preferences: str
+    outing_tendency: str
+
 # 移動判別エージェントへのリクエスト
 class MobilityRequest(BaseModel):
     prev_event_location: str # 前のイベントの場所
@@ -90,7 +96,6 @@ class MobilityResponse(BaseModel):
     reasoning: str             # なぜそのように判断したかの理由
     estimated_time: int        # 推定所要時間（分）
     estimated_cost: str        # 推定料金
-
 
 # 1つの行動プランは、テーマと「イベントのリスト」で構成される
 class PlanPattern(BaseModel):

@@ -1,6 +1,6 @@
 # app/routers/events.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from datetime import datetime
@@ -47,3 +47,16 @@ async def delete_existing_event(event_id: int, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     await crud.delete_event(db=db, db_event=db_event)
     return
+
+@router.get("/recently-updated/", response_model=List[schemas.Event])
+async def read_recently_updated_events(
+    limit: int = Query(5, ge=1, le=100, description="取得する最大件数"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    最近追加された予定を取得します。
+
+    - **limit**: 取得する件数を指定します (デフォルト: 5, 最小: 1, 最大: 100)。
+    """
+    events = await crud.get_recently_updated_events(db=db, limit=limit)
+    return events

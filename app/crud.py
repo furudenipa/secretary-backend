@@ -20,6 +20,15 @@ async def get_events_by_period(db: AsyncSession, start: datetime, end: datetime)
     )
     return result.scalars().all()
 
+async def get_recently_updated_events(db: AsyncSession, limit: int = 5) -> Sequence[models.Event]:
+    """最近追加された予定を取得する"""
+    result = await db.execute(
+        select(models.Event)
+        .order_by(models.Event.updated_at.desc())
+        .limit(limit)
+    )
+    return result.scalars().all()
+
 async def create_event(db: AsyncSession, event: schemas.EventCreate) -> models.Event:
     db_event = models.Event(**event.model_dump())
     db.add(db_event)
@@ -27,7 +36,7 @@ async def create_event(db: AsyncSession, event: schemas.EventCreate) -> models.E
     await db.refresh(db_event)
     return db_event
 
-# 
+#
 async def update_event(db: AsyncSession, db_event: models.Event, event_update: schemas.EventUpdate) -> models.Event:
     update_data = event_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
