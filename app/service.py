@@ -230,6 +230,8 @@ class MobilityAgent:
             print(f"Error during OpenAI call or data parsing: {e}")
             raise ConnectionError(f"AI decision-making failed: {e}")
         
+        
+# 今多分このエージェントと上のmobilityエージェントしか使ってない状態のはず。(村重)
 class MasterPlannerAgent:
     @staticmethod
     def _create_tavily_query_for_plans(req: schemas.MobilityRequest, mobility_decision: schemas.MobilityResponse) -> str:
