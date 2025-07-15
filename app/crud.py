@@ -50,3 +50,20 @@ async def delete_event(db: AsyncSession, db_event: models.Event) -> models.Event
     await db.delete(db_event)
     await db.commit()
     return db_event
+
+# --- User Profile CRUD ---
+
+async def create_user_profile(db: AsyncSession, profile: schemas.UserProfileCreate) -> models.UserProfile:
+    """Create a new user profile."""
+    db_profile = models.UserProfile(**profile.model_dump())
+    db.add(db_profile)
+    await db.commit()
+    await db.refresh(db_profile)
+    return db_profile
+
+async def get_latest_user_profile(db: AsyncSession) -> models.UserProfile | None:
+    """Get the most recent user profile from the database."""
+    result = await db.execute(
+        select(models.UserProfile).order_by(models.UserProfile.created_at.desc())
+    )
+    return result.scalars().first()

@@ -76,10 +76,23 @@ class SuggestionResponse(BaseModel):
     suggestions: List[Suggestion]
 
 # --- User Profile Schemas ---
-class UserProfileResponse(BaseModel):
+
+class UserProfileCreate(BaseModel):
+    """Schema for creating a user profile from analysis."""
     food_preferences: str
     activity_preferences: str
     outing_tendency: str
+
+class UserProfileResponse(BaseModel):
+    """Schema for API response of a user profile."""
+    id: int
+    food_preferences: str
+    activity_preferences: str
+    outing_tendency: str
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
 
 # 移動判別エージェントへのリクエスト
 class MobilityRequest(BaseModel):
@@ -127,7 +140,7 @@ class PlannerResponse(BaseModel):
 #     title: str
 #     description: str
 #     link: Optional[str] = None
-    
+
 #     # snippet: str
 
 # # 予定提案APIのレスポンス
