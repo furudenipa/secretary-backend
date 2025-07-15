@@ -16,6 +16,7 @@ app = FastAPI(
 # フロントエンド (React) からのアクセスを許可するために必要
 origins = [
     "http://localhost:3000",  # React開発サーバーのデフォルトポート
+    "http://localhost:5173", 
     # 必要に応じて本番環境のフロントエンドURLを追加
 ]
 

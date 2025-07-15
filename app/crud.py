@@ -2,7 +2,7 @@
 
 from typing import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from . import models, schemas
 from datetime import datetime
 
@@ -50,6 +50,34 @@ async def delete_event(db: AsyncSession, db_event: models.Event) -> models.Event
     await db.delete(db_event)
     await db.commit()
     return db_event
+
+async def get_previous_event(db: AsyncSession, target_time: datetime) -> models.Event | None:
+    """指定された時間と同じ日付で、それより前に終了する最も直近のイベントを取得する"""
+    target_date = target_time.date()
+    result = await db.execute(
+        select(models.Event)
+        .filter(
+            func.date(models.Event.end_time) == target_date,
+            models.Event.end_time <= target_time
+        )
+        .order_by(models.Event.end_time.desc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+async def get_next_event(db: AsyncSession, target_time: datetime) -> models.Event | None:
+    """指定された時間と同じ日付で、それより後に開始する最も直近のイベントを取得する"""
+    target_date = target_time.date()
+    result = await db.execute(
+        select(models.Event)
+        .filter(
+            func.date(models.Event.start_time) == target_date,
+            models.Event.start_time >= target_time
+        )
+        .order_by(models.Event.start_time.asc())
+        .limit(1)
+    )
+    return result.scalars().first()
 
 # --- User Profile CRUD ---
 
