@@ -107,6 +107,14 @@ class PlannerResponse(BaseModel):
     mobility_decision: MobilityResponse # 移動判断の結果
     plans: List[PlanPattern]            # 提案プランのリスト（2パターン）
 
+
+# 新しい便利プランナーエンドポイント用のリクエストスキーマ
+# フロントの囲い込みの、直前直後のイベントの情報を取得するためのスキーマ
+class ConveniencePlannerRequest(BaseModel):
+    free_time_start: datetime
+    free_time_end: datetime
+    user_preferences: str
+
 # # --- Suggestion Schemas ---
 
 # # 提案機能で利用する直前・直後の予定情報
