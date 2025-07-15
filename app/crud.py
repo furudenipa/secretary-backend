@@ -51,7 +51,6 @@ async def delete_event(db: AsyncSession, db_event: models.Event) -> models.Event
     await db.commit()
     return db_event
 
-
 async def get_previous_event(db: AsyncSession, target_time: datetime) -> models.Event | None:
     """指定された時間と同じ日付で、それより前に終了する最も直近のイベントを取得する"""
     target_date = target_time.date()
@@ -77,5 +76,22 @@ async def get_next_event(db: AsyncSession, target_time: datetime) -> models.Even
         )
         .order_by(models.Event.start_time.asc())
         .limit(1)
+    )
+    return result.scalars().first()
+
+# --- User Profile CRUD ---
+
+async def create_user_profile(db: AsyncSession, profile: schemas.UserProfileCreate) -> models.UserProfile:
+    """Create a new user profile."""
+    db_profile = models.UserProfile(**profile.model_dump())
+    db.add(db_profile)
+    await db.commit()
+    await db.refresh(db_profile)
+    return db_profile
+
+async def get_latest_user_profile(db: AsyncSession) -> models.UserProfile | None:
+    """Get the most recent user profile from the database."""
+    result = await db.execute(
+        select(models.UserProfile).order_by(models.UserProfile.created_at.desc())
     )
     return result.scalars().first()

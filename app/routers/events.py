@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from datetime import datetime
 
-from .. import crud, schemas, models
+from .. import crud, schemas, models, user_profile
 from ..database import get_db
 
 router = APIRouter(
@@ -20,7 +20,11 @@ async def create_new_event(event: schemas.EventCreate, db: AsyncSession = Depend
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="End time must be after start time."
         )
-    return await crud.create_event(db=db, event=event)
+    created_event = await crud.create_event(db=db, event=event)
+
+    # 予定を追加するたびにプロファイルを生成
+    await user_profile.UserProfileService.generate_profile(db=db)
+    return created_event
 
 @router.get("/", response_model=List[schemas.Event])
 async def read_events(start: datetime, end: datetime, db: AsyncSession = Depends(get_db)):
