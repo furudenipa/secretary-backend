@@ -60,3 +60,10 @@ async def create_user_profile(db: AsyncSession, profile: schemas.UserProfileCrea
     await db.commit()
     await db.refresh(db_profile)
     return db_profile
+
+async def get_latest_user_profile(db: AsyncSession) -> models.UserProfile | None:
+    """Get the most recent user profile from the database."""
+    result = await db.execute(
+        select(models.UserProfile).order_by(models.UserProfile.created_at.desc())
+    )
+    return result.scalars().first()
