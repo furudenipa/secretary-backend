@@ -15,7 +15,8 @@ app = FastAPI(
 # CORS (Cross-Origin Resource Sharing) の設定
 # フロントエンド (React) からのアクセスを許可するために必要
 origins = [
-    "http://localhost:3000",  # React開発サーバーのデフォルトポート
+    "http://localhost:5173",  # ★末尾のスラッシュを削除★
+    "http://127.0.0.1:5173",  # ★追加: 127.0.0.1 も許可★
     # 必要に応じて本番環境のフロントエンドURLを追加
 ]
 
