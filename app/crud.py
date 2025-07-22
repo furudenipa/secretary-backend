@@ -95,3 +95,10 @@ async def get_latest_user_profile(db: AsyncSession) -> models.UserProfile | None
         select(models.UserProfile).order_by(models.UserProfile.created_at.desc())
     )
     return result.scalars().first()
+
+async def has_events_updated_since(db: AsyncSession, since: datetime) -> bool:
+    """指定された日時以降に更新されたイベントが存在するかどうかをチェックする"""
+    result = await db.execute(
+        select(models.Event.id).filter(models.Event.updated_at >= since).limit(1)
+    )
+    return result.scalars().first() is not None
