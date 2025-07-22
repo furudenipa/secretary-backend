@@ -14,7 +14,7 @@ engine = create_async_engine(
 # 非同期セッションを作成するためのメーカー
 # autoflush=False, autocommit=False は非同期処理で標準的な設定
 AsyncSessionLocal = async_sessionmaker(
-    autocommit=False, autoflush=False, bind=engine
+    autocommit=False, autoflush=False, bind=engine, expire_on_commit=False
 )
 
 # モデルクラスが継承するためのベースクラス
