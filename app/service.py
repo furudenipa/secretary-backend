@@ -17,121 +17,121 @@ load_dotenv()
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-class SuggestionService:
-    @staticmethod
-    def _create_tavily_query(req: schemas.SuggestionRequest) -> str:
-        """ユーザーの状況からTavily検索用のクエリを生成する"""
-        duration_hours = (req.free_time_end - req.free_time_start).total_seconds() / 3600
+# class SuggestionService:
+#     @staticmethod
+#     def _create_tavily_query(req: schemas.SuggestionRequest) -> str:
+#         """ユーザーの状況からTavily検索用のクエリを生成する"""
+#         duration_hours = (req.free_time_end - req.free_time_start).total_seconds() / 3600
         
-        # 場所の情報を優先
-        locations = []
-        if req.prev_event and req.prev_event.location:
-            locations.append(req.prev_event.location)
-        # 前後の場所が違う場合のみ追加
-        if req.next_event and req.next_event.location:
-            if not locations or locations[0] != req.next_event.location:
-                locations.append(req.next_event.location)
+#         # 場所の情報を優先
+#         locations = []
+#         if req.prev_event and req.prev_event.location:
+#             locations.append(req.prev_event.location)
+#         # 前後の場所が違う場合のみ追加
+#         if req.next_event and req.next_event.location:
+#             if not locations or locations[0] != req.next_event.location:
+#                 locations.append(req.next_event.location)
 
-        if locations:
-            return f"{'または'.join(locations)}周辺で{duration_hours:.1f}時間で楽しめること"
+#         if locations:
+#             return f"{'または'.join(locations)}周辺で{duration_hours:.1f}時間で楽しめること"
         
-        return "近くで短時間で楽しめるアクティビティ"
+#         return "近くで短時間で楽しめるアクティビティ"
 
-    @staticmethod
-    def _create_openai_prompt(req: schemas.SuggestionRequest, tavily_context: str) -> str:
-        """Tavilyの検索結果を元に、OpenAIへの詳細な指示プロンプトを生成する"""
+#     @staticmethod
+#     def _create_openai_prompt(req: schemas.SuggestionRequest, tavily_context: str) -> str:
+#         """Tavilyの検索結果を元に、OpenAIへの詳細な指示プロンプトを生成する"""
         
-        # 状況説明
-        situation = f"""
-        # ユーザーの状況
-        - 直前の予定: {req.prev_event.content if req.prev_event else 'なし'}
-        - 直前の予定の場所: {req.prev_event.location if req.prev_event else '不明'}
-        - 空き時間の開始: {req.free_time_start.strftime('%H:%M')}
-        - 空き時間の終了: {req.free_time_end.strftime('%H:%M')}
-        - 直後の予定: {req.next_event.content if req.next_event else 'なし'}
-        - 直後の予定の場所: {req.next_event.location if req.next_event else '不明'}
+#         # 状況説明
+#         situation = f"""
+#         # ユーザーの状況
+#         - 直前の予定: {req.prev_event.content if req.prev_event else 'なし'}
+#         - 直前の予定の場所: {req.prev_event.location if req.prev_event else '不明'}
+#         - 空き時間の開始: {req.free_time_start.strftime('%H:%M')}
+#         - 空き時間の終了: {req.free_time_end.strftime('%H:%M')}
+#         - 直後の予定: {req.next_event.content if req.next_event else 'なし'}
+#         - 直後の予定の場所: {req.next_event.location if req.next_event else '不明'}
 
-        # Web検索から得られた参考情報
-        {tavily_context}
-        """
+#         # Web検索から得られた参考情報
+#         {tavily_context}
+#         """
 
-        # 指示
-        instruction = f"""
-        # あなたのタスク
-        あなたは非常に優秀な旅行プランナーです。上記の「ユーザーの状況」と「参考情報」を元に、空き時間を最大限に活用できる、具体的で実行可能なプランを1つ提案してください。
-        以下の制約条件と出力形式を厳守してください。
+#         # 指示
+#         instruction = f"""
+#         # あなたのタスク
+#         あなたは非常に優秀な旅行プランナーです。上記の「ユーザーの状況」と「参考情報」を元に、空き時間を最大限に活用できる、具体的で実行可能なプランを1つ提案してください。
+#         以下の制約条件と出力形式を厳守してください。
 
-        # 制約条件
-        - 提案するアクティビティの開始から終了、そして次の予定への移動時間まで、すべてがユーザーの空き時間内に収まるように計画してください。
-        - 移動時間は現実的な値を想定してください（例：徒歩10分、電車15分など）。
-        - 提案する内容は、参考情報に基づいた、事実ベースのものにしてください。
+#         # 制約条件
+#         - 提案するアクティビティの開始から終了、そして次の予定への移動時間まで、すべてがユーザーの空き時間内に収まるように計画してください。
+#         - 移動時間は現実的な値を想定してください（例：徒歩10分、電車15分など）。
+#         - 提案する内容は、参考情報に基づいた、事実ベースのものにしてください。
 
-        # 出力形式 (必ずこのJSON形式で出力してください)
-        {{
-          "title": "提案アクティビティの魅力的なタイトル",
-          "description": "なぜこのプランがおすすめなのか、具体的な説明",
-          "activity_start_time": "{req.free_time_start.strftime('%Y-%m-%dT%H:%M:%S')}",
-          "activity_end_time": "{req.free_time_end.strftime('%Y-%m-%dT%H:%M:%S')}",
-          "location": "アクティビティを行う具体的な場所",
-          "estimated_cost": "おおよその費用（例：1,500円, 無料）",
-          "travel_from_previous": {{
-            "mode": "移動手段（徒歩、電車、バス、タクシーなど）",
-            "duration_minutes": 15,
-            "instructions": "前の予定の場所からの具体的な移動指示"
-          }},
-          "travel_to_next": {{
-            "mode": "移動手段",
-            "duration_minutes": 20,
-            "instructions": "提案場所から次の予定の場所への具体的な移動指示"
-          }},
-          "source_link": "参考にした情報のURL"
-        }}
-        """
-        return situation + instruction
+#         # 出力形式 (必ずこのJSON形式で出力してください)
+#         {{
+#           "title": "提案アクティビティの魅力的なタイトル",
+#           "description": "なぜこのプランがおすすめなのか、具体的な説明",
+#           "activity_start_time": "{req.free_time_start.strftime('%Y-%m-%dT%H:%M:%S')}",
+#           "activity_end_time": "{req.free_time_end.strftime('%Y-%m-%dT%H:%M:%S')}",
+#           "location": "アクティビティを行う具体的な場所",
+#           "estimated_cost": "おおよその費用（例：1,500円, 無料）",
+#           "travel_from_previous": {{
+#             "mode": "移動手段（徒歩、電車、バス、タクシーなど）",
+#             "duration_minutes": 15,
+#             "instructions": "前の予定の場所からの具体的な移動指示"
+#           }},
+#           "travel_to_next": {{
+#             "mode": "移動手段",
+#             "duration_minutes": 20,
+#             "instructions": "提案場所から次の予定の場所への具体的な移動指示"
+#           }},
+#           "source_link": "参考にした情報のURL"
+#         }}
+#         """
+#         return situation + instruction
 
-    @staticmethod
-    async def get_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
-        if not openai_client.api_key or not tavily_client.api_key:
-            raise ValueError("API Key is not set.")
+#     @staticmethod
+#     async def get_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
+#         if not openai_client.api_key or not tavily_client.api_key:
+#             raise ValueError("API Key is not set.")
 
-        # 1. Tavilyで検索クエリを生成し、情報を検索
-        tavily_query = SuggestionService._create_tavily_query(req)
-        try:
-            search_result = tavily_client.search(
-                query=tavily_query,
-                search_depth="advanced", # より詳細な検索
-                max_results=5
-            )
-            # 検索結果を文脈として整形
-            tavily_context = "\n".join([f"- {res['content']} (Source: {res['url']})" for res in search_result['results']])
-        except Exception as e:
-            raise ConnectionError(f"Tavily API search failed: {e}")
+#         # 1. Tavilyで検索クエリを生成し、情報を検索
+#         tavily_query = SuggestionService._create_tavily_query(req)
+#         try:
+#             search_result = tavily_client.search(
+#                 query=tavily_query,
+#                 search_depth="advanced", # より詳細な検索
+#                 max_results=5
+#             )
+#             # 検索結果を文脈として整形
+#             tavily_context = "\n".join([f"- {res['content']} (Source: {res['url']})" for res in search_result['results']])
+#         except Exception as e:
+#             raise ConnectionError(f"Tavily API search failed: {e}")
 
-        # 2. OpenAIに渡すプロンプトを生成
-        openai_prompt = SuggestionService._create_openai_prompt(req, tavily_context)
+#         # 2. OpenAIに渡すプロンプトを生成
+#         openai_prompt = SuggestionService._create_openai_prompt(req, tavily_context)
 
-        # 3. OpenAI APIを呼び出し、詳細なプランを生成させる
-        try:
-            response = await openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": openai_prompt}],
-                temperature=0.5,
-                response_format={"type": "json_object"}
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("OpenAI API returned an empty response.")
+#         # 3. OpenAI APIを呼び出し、詳細なプランを生成させる
+#         try:
+#             response = await openai_client.chat.completions.create(
+#                 model="gpt-4o",
+#                 messages=[{"role": "system", "content": openai_prompt}],
+#                 temperature=0.5,
+#                 response_format={"type": "json_object"}
+#             )
+#             content = response.choices[0].message.content
+#             if not content:
+#                 raise ValueError("OpenAI API returned an empty response.")
             
-            # JSONをパースし、Pydanticモデルに変換
-            plan_data = json.loads(content)
-            suggestion = schemas.Suggestion(**plan_data)
+#             # JSONをパースし、Pydanticモデルに変換
+#             plan_data = json.loads(content)
+#             suggestion = schemas.Suggestion(**plan_data)
             
-            return schemas.SuggestionResponse(
-                search_query=tavily_query,
-                suggestions=[suggestion] # 1つの詳細なプランを返す
-            )
-        except Exception as e:
-            raise ConnectionError(f"OpenAI API call failed: {e}")
+#             return schemas.SuggestionResponse(
+#                 search_query=tavily_query,
+#                 suggestions=[suggestion] # 1つの詳細なプランを返す
+#             )
+#         except Exception as e:
+#             raise ConnectionError(f"OpenAI API call failed: {e}")
 
 class MobilityAgent:
     @staticmethod
@@ -374,174 +374,113 @@ class MasterPlannerAgent:
             mobility_decision=mobility_decision,
             plans=[schemas.PlanPattern(**plan) for plan in plans_data.get('plans', [])]
         )
-# class SuggestionService:
-#     @staticmethod
-#     def _generate_prompt(req: schemas.SuggestionRequest) -> str:
-#         """リクエスト情報からOpenAIへのプロンプトを生成する"""
+
+# app/services.py に以下の新しいクラスを追記
+
+class MasculineAgent:
+    @staticmethod
+    def _create_tavily_query(req: schemas.MobilityRequest) -> str:
+        """トライアスリート向けのトレーニング場所を検索するクエリを生成する"""
         
-#         duration_minutes = int((req.free_time_end - req.free_time_start).total_seconds() / 60)
+        # available_minutes = (req.next_event_start_time - req.prev_event_end_time).total_seconds() / 60
+        origin = req.prev_event_location
+        destination = req.next_event_location
+
+        # クエリをより具体的に
+        return f"{origin}と{destination}の間にある、またはその周辺の、ランニングコース、オープンウォータースイミングができる場所、登山・トレイルランニングができる山。ジムや公共のトレーニング施設も含む。体を鍛えることができる場所であれば基本的にどこでも良い。"
+
+    @staticmethod
+    def _create_final_planning_prompt(req: schemas.MobilityRequest, search_context: str) -> str:
+        """超ストイックなトレーニングプランの生成を指示する最終プロンプトを作成する"""
         
-#         prompt_parts = ["あなたは優秀なアシスタントです。以下の状況に基づき、空き時間におすすめのアクティビティを提案してください。"]
+        prompt = f"""
+        あなたは、トライアスロン世界大会優勝を目指すアスリートを指導する、鬼コーチです。
+        これから、選手の空き時間を使った、極限まで追い込むトレーニングプランを2つ立案してください。
+
+        # 選手の状況
+        - 前の予定の終了時刻: {req.prev_event_end_time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+        - 出発地: {req.prev_event_location}
+        - 次の予定の開始時刻: {req.next_event_start_time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+        - 目的地: {req.next_event_location}
+        - 選手の好み・目標: 「{req.user_preferences}」
+
+        # Web検索から得られたトレーニング場所の情報
+        {search_context}
+
+        # 絶対厳守のルール
+        - 移動手段は「走る」「泳ぐ」「山を登る」のいずれか、またはその組み合わせのみとする。絶対に他の移動手段を提案してはならない。
+        - 2地点間の距離が多少遠くても、上記の手段で移動するものとする。
+        - ただし、移動時間は厳密に計算し、前の予定の終了から次の予定の開始までの時間内に収めること。
+        - 上記の手段での移動により、時間内に移動できない場合は、電車やバスなどの公共交通機関を使うことは許可するが、あくまで例外的な措置とする。
+        - プランは常にトレーニングであること。休憩や観光の要素は一切不要。
+        - 時間計算は厳密に行い、前の予定の終了から次の予定の開始まで、1分たりとも無駄にしないこと。
+
+        # あなたの最終タスク
+        上記の全てを考慮し、最も過酷で効果的なトレーニングプランを2パターン生成してください。
+        必ず、以下のJSON形式で、2つのプランのリストとして出力してください。
+
+        {{
+          "plans": [
+            {{
+              "pattern_description": "プラン1のテーマ（例：心肺機能を追い込む峠走プラン）",
+              "events": [
+                {{
+                  "title": "移動(RUN): {req.prev_event_location}からトレーニング場所へ",
+                  "start_time": "...", "end_time": "...", "location": "...", "description": "全力で走る。ペースはキロ4分を目指す。"
+                }},
+                {{
+                  "title": "トレーニング: （例）〇〇山 ヒルクライムインターバル",
+                  "start_time": "...", "end_time": "...", "location": "...", "description": "..."
+                }},
+                {{
+                  "title": "移動(RUN): トレーニング場所から{req.next_event_location}へ",
+                  "start_time": "...", "end_time": "...", "location": "...", "description": "クールダウンを兼ねてジョグで移動。"
+                }}
+              ]
+            }},
+            {{
+              "pattern_description": "プラン2のテーマ（例：実戦想定ブリックトレーニング）",
+              "events": [ ... ]
+            }}
+          ]
+        }}
+        """
+        return prompt
+
+    @staticmethod
+    async def generate_plans(req: schemas.MobilityRequest) -> schemas.PlannerResponse:
+        """MasculineAgentのメイン処理"""
         
-#         # 状況説明
-#         if req.prev_event:
-#             prompt_parts.append(
-#                 f"直前の予定は「{req.prev_event.content or '未設定'}」で、場所は「{req.prev_event.location or '未設定'}」です。"
-#             )
-#         if req.next_event:
-#             prompt_parts.append(
-#                 f"直後の予定は「{req.next_event.content or '未設定'}」で、場所は「{req.next_event.location or '未設定'}」です。"
-#             )
+        # 1. トレーニング場所のアイデアをWeb検索
+        tavily_query = MasculineAgent._create_tavily_query(req)
+        search_result = tavily_client.search(query=tavily_query, search_depth="advanced", max_results=7)
+        search_context = "\n".join([f"- {res['content']}" for res in search_result['results']])
+
+        # 2. 最終的なプラン生成をAIに指示
+        final_prompt = MasculineAgent._create_final_planning_prompt(req, search_context)
         
-#         prompt_parts.append(f"空き時間は約{duration_minutes}分です。")
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": final_prompt}],
+            response_format={"type": "json_object"}
+        )
         
-#         # 場所の制約
-#         locations = []
-#         if req.prev_event and req.prev_event.location:
-#             locations.append(req.prev_event.location)
-#         if req.next_event and req.next_event.location:
-#             if not req.prev_event or req.prev_event.location != req.next_event.location:
-#                 locations.append(req.next_event.location)
-
-#         if len(locations) == 1:
-#             prompt_parts.append(f"場所は「{locations[0]}」周辺を想定してください。")
-#         elif len(locations) > 1:
-#             prompt_parts.append(f"場所は「{locations[0]}」から「{locations[1]}」への移動も考慮してください。")
-
-#         # 指示
-#         prompt_parts.append(
-#             "\nこれらの情報を総合的に判断し、創造的で最適な提案を3つ、以下のJSON形式で出力してください。"
-#         )
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("AI Planner returned an empty response.")
         
-#         return "\n".join(prompt_parts)
-
-#     @staticmethod
-#     async def get_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
-#         if not client.api_key:
-#             raise ValueError("OpenAI API Key is not set.")
-
-#         system_prompt = SuggestionService._generate_prompt(req)
+        plans_data = json.loads(content)
         
-#         # 出力してほしいJSONの形式をユーザーメッセージで補足
-#         user_prompt = """
-#         {
-#           "suggestions": [
-#             {
-#               "title": "提案のタイトル",
-#               "description": "提案内容の具体的な説明",
-#               "link": "関連するURL（あれば）"
-#             }
-#           ]
-#         }
-#         """
-
-#         try:
-#             response = await client.chat.completions.create(
-#                 model="gpt-4o",  # 最新モデル（またはgpt-3.5-turboなど）
-#                 messages=[
-#                     {"role": "system", "content": system_prompt},
-#                     {"role": "user", "content": user_prompt}
-#                 ],
-#                 temperature=0.7, # 創造性の度合い
-#                 response_format={"type": "json_object"} # JSONモードを有効化
-#             )
-            
-#             content = response.choices[0].message.content
-#             if not content:
-#                 raise ValueError("APIから空のレスポンスが返されました。")
-
-#             # JSON文字列をパース
-#             data = json.loads(content)
-            
-#             # Pydanticスキーマに変換
-#             suggestions_data = data.get("suggestions", [])
-#             suggestions = [schemas.Suggestion(**item) for item in suggestions_data]
-            
-#             # レスポンスを作成
-#             query_summary = f"{int((req.free_time_end - req.free_time_start).total_seconds() / 60)}分の空き時間への提案"
-#             return schemas.SuggestionResponse(query=query_summary, suggestions=suggestions)
-
-#         except json.JSONDecodeError:
-#             raise ValueError("APIが不正なJSON形式のレスポンスを返しました。")
-#         except Exception as e:
-#             # OpenAI APIのエラーなどを捕捉
-#             print(f"OpenAI API error: {e}")
-#             raise
-# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-# GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
-# SEARCH_API_URL = "https://www.googleapis.com/customsearch/v1"
-
-
-
-# class GoogleSearchService:
-#     @staticmethod
-#     def _generate_query(req: schemas.SuggestionRequest) -> str:
-#         """リクエスト情報から検索クエリを生成する"""
+        # MobilityAgentを使わないので、ダミーの判断結果を生成してレスポンスの型を合わせる
+        dummy_mobility_decision = schemas.MobilityResponse(
+            use_public_transport=False,
+            recommended_mode="己の肉体",
+            reasoning="アスリートに文明の利器は不要。移動は全てトレーニングの一環である。",
+            estimated_time=0, # 時間はプラン内で計算
+            estimated_cost="0円"
+        )
         
-#         # 空き時間を計算（時間単位）
-#         duration_hours = (req.free_time_end - req.free_time_start).total_seconds() / 3600
-        
-#         query_parts = []
-        
-#         # 場所の情報があればクエリに追加
-#         locations = []
-#         if req.prev_event and req.prev_event.location:
-#             locations.append(req.prev_event.location)
-#         if req.next_event and req.next_event.location:
-#             # 前後の場所が同じなら1つにまとめる
-#             if not req.prev_event or req.prev_event.location != req.next_event.location:
-#                  locations.append(req.next_event.location)
-
-#         if locations:
-#             query_parts.append(f"{'や'.join(locations)} 付近")
-
-#         # 予定内容の情報があればクエリに追加
-#         contents = []
-#         if req.prev_event and req.prev_event.content:
-#             contents.append(req.prev_event.content)
-#         if req.next_event and req.next_event.content:
-#             contents.append(req.next_event.content)
-        
-#         if contents:
-#             query_parts.append(f"{'と'.join(contents)}に関連する")
-            
-#         # 時間の情報をクエリに追加
-#         query_parts.append(f"{duration_hours:.1f}時間でできること")
-
-#         # シンプルなクエリを返す（ここは要件に合わせて高度化できます）
-#         if not query_parts:
-#             return "近くのおすすめスポット"
-
-#         return " ".join(query_parts)
-
-#     @staticmethod
-#     async def search_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
-#         if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-#             raise ValueError("Google API Key or CSE ID is not set.")
-
-#         query = GoogleSearchService._generate_query(req)
-        
-#         params = {
-#             "key": GOOGLE_API_KEY,
-#             "cx": GOOGLE_CSE_ID,
-#             "q": query,
-#             "num": 5  # 提案を5件取得
-#         }
-        
-#         async with httpx.AsyncClient() as client:
-#             response = await client.get(SEARCH_API_URL, params=params)
-#             response.raise_for_status() # エラーがあれば例外を発生
-        
-#         data = response.json()
-#         suggestions = []
-#         if "items" in data:
-#             for item in data["items"]:
-#                 suggestions.append(
-#                     schemas.Suggestion(
-#                         title=item.get("title", ""),
-#                         link=item.get("link", ""),
-#                         snippet=item.get("snippet", "")
-#                     )
-#                 )
-        
-#         return schemas.SuggestionResponse(query=query, suggestions=suggestions)
+        return schemas.PlannerResponse(
+            mobility_decision=dummy_mobility_decision,
+            plans=[schemas.PlanPattern(**plan) for plan in plans_data.get('plans', [])]
+        )
