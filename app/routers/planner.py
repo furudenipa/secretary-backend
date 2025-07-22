@@ -12,14 +12,14 @@ router = APIRouter(
 )
 
 # ... 既存の /generate-plans エンドポイント ...
-@router.post("/generate-plans", response_model=schemas.PlannerResponse)
-async def generate_comprehensive_plans(request: schemas.MobilityRequest):
-    try:
-        full_plan = await service.MasterPlannerAgent.generate_plans(request)
-        return full_plan
-    except Exception as e:
-        print(f"Error in planner endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate plans.")
+# @router.post("/generate-plans", response_model=schemas.PlannerResponse)
+# async def generate_comprehensive_plans(request: schemas.MobilityRequest):
+#     try:
+#         full_plan = await service.MasterPlannerAgent.generate_plans(request)
+#         return full_plan
+#     except Exception as e:
+#         print(f"Error in planner endpoint: {e}")
+#         raise HTTPException(status_code=500, detail="Failed to generate plans.")
 
 # --- ここから新しいエンドポイントを追加 ---
 @router.post("/generate-plans-from-free-time", response_model=schemas.PlannerResponse)

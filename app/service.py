@@ -17,121 +17,121 @@ load_dotenv()
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-class SuggestionService:
-    @staticmethod
-    def _create_tavily_query(req: schemas.SuggestionRequest) -> str:
-        """ユーザーの状況からTavily検索用のクエリを生成する"""
-        duration_hours = (req.free_time_end - req.free_time_start).total_seconds() / 3600
+# class SuggestionService:
+#     @staticmethod
+#     def _create_tavily_query(req: schemas.SuggestionRequest) -> str:
+#         """ユーザーの状況からTavily検索用のクエリを生成する"""
+#         duration_hours = (req.free_time_end - req.free_time_start).total_seconds() / 3600
         
-        # 場所の情報を優先
-        locations = []
-        if req.prev_event and req.prev_event.location:
-            locations.append(req.prev_event.location)
-        # 前後の場所が違う場合のみ追加
-        if req.next_event and req.next_event.location:
-            if not locations or locations[0] != req.next_event.location:
-                locations.append(req.next_event.location)
+#         # 場所の情報を優先
+#         locations = []
+#         if req.prev_event and req.prev_event.location:
+#             locations.append(req.prev_event.location)
+#         # 前後の場所が違う場合のみ追加
+#         if req.next_event and req.next_event.location:
+#             if not locations or locations[0] != req.next_event.location:
+#                 locations.append(req.next_event.location)
 
-        if locations:
-            return f"{'または'.join(locations)}周辺で{duration_hours:.1f}時間で楽しめること"
+#         if locations:
+#             return f"{'または'.join(locations)}周辺で{duration_hours:.1f}時間で楽しめること"
         
-        return "近くで短時間で楽しめるアクティビティ"
+#         return "近くで短時間で楽しめるアクティビティ"
 
-    @staticmethod
-    def _create_openai_prompt(req: schemas.SuggestionRequest, tavily_context: str) -> str:
-        """Tavilyの検索結果を元に、OpenAIへの詳細な指示プロンプトを生成する"""
+#     @staticmethod
+#     def _create_openai_prompt(req: schemas.SuggestionRequest, tavily_context: str) -> str:
+#         """Tavilyの検索結果を元に、OpenAIへの詳細な指示プロンプトを生成する"""
         
-        # 状況説明
-        situation = f"""
-        # ユーザーの状況
-        - 直前の予定: {req.prev_event.content if req.prev_event else 'なし'}
-        - 直前の予定の場所: {req.prev_event.location if req.prev_event else '不明'}
-        - 空き時間の開始: {req.free_time_start.strftime('%H:%M')}
-        - 空き時間の終了: {req.free_time_end.strftime('%H:%M')}
-        - 直後の予定: {req.next_event.content if req.next_event else 'なし'}
-        - 直後の予定の場所: {req.next_event.location if req.next_event else '不明'}
+#         # 状況説明
+#         situation = f"""
+#         # ユーザーの状況
+#         - 直前の予定: {req.prev_event.content if req.prev_event else 'なし'}
+#         - 直前の予定の場所: {req.prev_event.location if req.prev_event else '不明'}
+#         - 空き時間の開始: {req.free_time_start.strftime('%H:%M')}
+#         - 空き時間の終了: {req.free_time_end.strftime('%H:%M')}
+#         - 直後の予定: {req.next_event.content if req.next_event else 'なし'}
+#         - 直後の予定の場所: {req.next_event.location if req.next_event else '不明'}
 
-        # Web検索から得られた参考情報
-        {tavily_context}
-        """
+#         # Web検索から得られた参考情報
+#         {tavily_context}
+#         """
 
-        # 指示
-        instruction = f"""
-        # あなたのタスク
-        あなたは非常に優秀な旅行プランナーです。上記の「ユーザーの状況」と「参考情報」を元に、空き時間を最大限に活用できる、具体的で実行可能なプランを1つ提案してください。
-        以下の制約条件と出力形式を厳守してください。
+#         # 指示
+#         instruction = f"""
+#         # あなたのタスク
+#         あなたは非常に優秀な旅行プランナーです。上記の「ユーザーの状況」と「参考情報」を元に、空き時間を最大限に活用できる、具体的で実行可能なプランを1つ提案してください。
+#         以下の制約条件と出力形式を厳守してください。
 
-        # 制約条件
-        - 提案するアクティビティの開始から終了、そして次の予定への移動時間まで、すべてがユーザーの空き時間内に収まるように計画してください。
-        - 移動時間は現実的な値を想定してください（例：徒歩10分、電車15分など）。
-        - 提案する内容は、参考情報に基づいた、事実ベースのものにしてください。
+#         # 制約条件
+#         - 提案するアクティビティの開始から終了、そして次の予定への移動時間まで、すべてがユーザーの空き時間内に収まるように計画してください。
+#         - 移動時間は現実的な値を想定してください（例：徒歩10分、電車15分など）。
+#         - 提案する内容は、参考情報に基づいた、事実ベースのものにしてください。
 
-        # 出力形式 (必ずこのJSON形式で出力してください)
-        {{
-          "title": "提案アクティビティの魅力的なタイトル",
-          "description": "なぜこのプランがおすすめなのか、具体的な説明",
-          "activity_start_time": "{req.free_time_start.strftime('%Y-%m-%dT%H:%M:%S')}",
-          "activity_end_time": "{req.free_time_end.strftime('%Y-%m-%dT%H:%M:%S')}",
-          "location": "アクティビティを行う具体的な場所",
-          "estimated_cost": "おおよその費用（例：1,500円, 無料）",
-          "travel_from_previous": {{
-            "mode": "移動手段（徒歩、電車、バス、タクシーなど）",
-            "duration_minutes": 15,
-            "instructions": "前の予定の場所からの具体的な移動指示"
-          }},
-          "travel_to_next": {{
-            "mode": "移動手段",
-            "duration_minutes": 20,
-            "instructions": "提案場所から次の予定の場所への具体的な移動指示"
-          }},
-          "source_link": "参考にした情報のURL"
-        }}
-        """
-        return situation + instruction
+#         # 出力形式 (必ずこのJSON形式で出力してください)
+#         {{
+#           "title": "提案アクティビティの魅力的なタイトル",
+#           "description": "なぜこのプランがおすすめなのか、具体的な説明",
+#           "activity_start_time": "{req.free_time_start.strftime('%Y-%m-%dT%H:%M:%S')}",
+#           "activity_end_time": "{req.free_time_end.strftime('%Y-%m-%dT%H:%M:%S')}",
+#           "location": "アクティビティを行う具体的な場所",
+#           "estimated_cost": "おおよその費用（例：1,500円, 無料）",
+#           "travel_from_previous": {{
+#             "mode": "移動手段（徒歩、電車、バス、タクシーなど）",
+#             "duration_minutes": 15,
+#             "instructions": "前の予定の場所からの具体的な移動指示"
+#           }},
+#           "travel_to_next": {{
+#             "mode": "移動手段",
+#             "duration_minutes": 20,
+#             "instructions": "提案場所から次の予定の場所への具体的な移動指示"
+#           }},
+#           "source_link": "参考にした情報のURL"
+#         }}
+#         """
+#         return situation + instruction
 
-    @staticmethod
-    async def get_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
-        if not openai_client.api_key or not tavily_client.api_key:
-            raise ValueError("API Key is not set.")
+#     @staticmethod
+#     async def get_suggestions(req: schemas.SuggestionRequest) -> schemas.SuggestionResponse:
+#         if not openai_client.api_key or not tavily_client.api_key:
+#             raise ValueError("API Key is not set.")
 
-        # 1. Tavilyで検索クエリを生成し、情報を検索
-        tavily_query = SuggestionService._create_tavily_query(req)
-        try:
-            search_result = tavily_client.search(
-                query=tavily_query,
-                search_depth="advanced", # より詳細な検索
-                max_results=5
-            )
-            # 検索結果を文脈として整形
-            tavily_context = "\n".join([f"- {res['content']} (Source: {res['url']})" for res in search_result['results']])
-        except Exception as e:
-            raise ConnectionError(f"Tavily API search failed: {e}")
+#         # 1. Tavilyで検索クエリを生成し、情報を検索
+#         tavily_query = SuggestionService._create_tavily_query(req)
+#         try:
+#             search_result = tavily_client.search(
+#                 query=tavily_query,
+#                 search_depth="advanced", # より詳細な検索
+#                 max_results=5
+#             )
+#             # 検索結果を文脈として整形
+#             tavily_context = "\n".join([f"- {res['content']} (Source: {res['url']})" for res in search_result['results']])
+#         except Exception as e:
+#             raise ConnectionError(f"Tavily API search failed: {e}")
 
-        # 2. OpenAIに渡すプロンプトを生成
-        openai_prompt = SuggestionService._create_openai_prompt(req, tavily_context)
+#         # 2. OpenAIに渡すプロンプトを生成
+#         openai_prompt = SuggestionService._create_openai_prompt(req, tavily_context)
 
-        # 3. OpenAI APIを呼び出し、詳細なプランを生成させる
-        try:
-            response = await openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": openai_prompt}],
-                temperature=0.5,
-                response_format={"type": "json_object"}
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("OpenAI API returned an empty response.")
+#         # 3. OpenAI APIを呼び出し、詳細なプランを生成させる
+#         try:
+#             response = await openai_client.chat.completions.create(
+#                 model="gpt-4o",
+#                 messages=[{"role": "system", "content": openai_prompt}],
+#                 temperature=0.5,
+#                 response_format={"type": "json_object"}
+#             )
+#             content = response.choices[0].message.content
+#             if not content:
+#                 raise ValueError("OpenAI API returned an empty response.")
             
-            # JSONをパースし、Pydanticモデルに変換
-            plan_data = json.loads(content)
-            suggestion = schemas.Suggestion(**plan_data)
+#             # JSONをパースし、Pydanticモデルに変換
+#             plan_data = json.loads(content)
+#             suggestion = schemas.Suggestion(**plan_data)
             
-            return schemas.SuggestionResponse(
-                search_query=tavily_query,
-                suggestions=[suggestion] # 1つの詳細なプランを返す
-            )
-        except Exception as e:
-            raise ConnectionError(f"OpenAI API call failed: {e}")
+#             return schemas.SuggestionResponse(
+#                 search_query=tavily_query,
+#                 suggestions=[suggestion] # 1つの詳細なプランを返す
+#             )
+#         except Exception as e:
+#             raise ConnectionError(f"OpenAI API call failed: {e}")
 
 class MobilityAgent:
     @staticmethod
@@ -409,7 +409,9 @@ class MasculineAgent:
 
         # 絶対厳守のルール
         - 移動手段は「走る」「泳ぐ」「山を登る」のいずれか、またはその組み合わせのみとする。絶対に他の移動手段を提案してはならない。
-        - 2地点間の距離がどれほど遠くても、上記の手段で移動するものとする。
+        - 2地点間の距離が多少遠くても、上記の手段で移動するものとする。
+        - ただし、移動時間は厳密に計算し、前の予定の終了から次の予定の開始までの時間内に収めること。
+        - 上記の手段での移動により、時間内に移動できない場合は、電車やバスなどの公共交通機関を使うことは許可するが、あくまで例外的な措置とする。
         - プランは常にトレーニングであること。休憩や観光の要素は一切不要。
         - 時間計算は厳密に行い、前の予定の終了から次の予定の開始まで、1分たりとも無駄にしないこと。
 

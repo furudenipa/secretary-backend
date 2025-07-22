@@ -30,11 +30,11 @@ app.add_middleware(
 
 # ルーターをアプリケーションに登録
 app.include_router(events.router)
-app.include_router(suggestion.router)
+# app.include_router(suggestion.router)
 
 app.include_router(agent.router)
 app.include_router(planner.router)
-app.include_router(user_profile.router)
+# app.include_router(user_profile.router)
 app.include_router(masculine_planner.router) # この行を追加
 
 @app.on_event("startup")
