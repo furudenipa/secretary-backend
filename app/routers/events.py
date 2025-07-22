@@ -23,7 +23,7 @@ async def create_new_event(event: schemas.EventCreate, db: AsyncSession = Depend
     created_event = await crud.create_event(db=db, event=event)
 
     # 予定を追加するたびにプロファイルを生成
-    await user_profile.UserProfileService.generate_profile(db=db)
+    # await user_profile.UserProfileService.generate_profile(db=db)
     return created_event
 
 @router.get("/", response_model=List[schemas.Event])
