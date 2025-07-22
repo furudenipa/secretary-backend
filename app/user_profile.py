@@ -3,7 +3,7 @@ import httpx
 import json
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
+from datetime import datetime, date
 from typing import Sequence
 
 from . import crud, models, schemas
@@ -106,3 +106,26 @@ class UserProfileService:
 
             profile = schemas.UserProfileCreate(**profile_data)
             return await crud.create_user_profile(db=db, profile=profile)
+
+    @staticmethod
+    async def regenerate_profile_if_stale(db: AsyncSession):
+        """
+        プロフィールの鮮度をチェックし、古ければ再生成する。
+        この関数はバックグラウンドタスクでの実行を想定しており、メインスレッドをブロックしない。
+        """
+        latest_profile = await crud.get_latest_user_profile(db)
+        today = date.today()
+
+        # プロフィールが存在し、かつ今日生成されたものであれば何もしない
+        if latest_profile and latest_profile.created_at.date() >= today:
+            # print("Profile is already up-to-date for today.") # デバッグ用
+            return
+
+        # プロフィールが存在しないか、古い場合に再生成を試みる
+        try:
+            print("Regenerating user profile due to new event activity...")
+            await UserProfileService.generate_profile(db)
+            print("User profile regenerated successfully.")
+        except Exception as e:
+            # 本番環境ではloggingを使用してエラーを記録することが望ましい
+            print(f"Error during automatic profile regeneration: {e}")
